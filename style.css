@@ -174,3 +174,23 @@ button{cursor:pointer}
 
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:40;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:reduce){.meter i{transition:none}}
+
+/* 직접 등록 화면의 "AI에게 물어보기" 칸 */
+.form .full{grid-column:1 / -1}
+.panel.ai{background:var(--bg);gap:10px}
+.panel.ai .hint{margin:0}
+a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:inherit}
+.form textarea{border-radius:10px;border:1px solid var(--line);background:var(--surface);padding:10px;font:inherit;font-size:16px;color:inherit;width:100%;min-width:0;resize:vertical}
+
+/* 음식 분류 접기·펼치기 */
+details.group{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+details.group summary{cursor:pointer;list-style:none;padding:12px 14px;font-weight:600;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+details.group summary::-webkit-details-marker{display:none}
+details.group summary span{color:var(--muted);font-family:var(--mono);font-size:12.5px}
+details.group summary::after{content:"＋";color:var(--muted);margin-left:8px}
+details.group[open] summary::after{content:"－"}
+details.group .foodlist{border:0;border-top:1px solid var(--line);border-radius:0}
+details.group summary span{margin-left:auto}
+/* 시트 안 내용이 길어져도 검색창·목록이 찌그러지지 않게 */
+.sheet > *{flex-shrink:0}
+#results{display:flex;flex-direction:column;gap:8px}

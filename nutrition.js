@@ -13,25 +13,44 @@ const DEFAULT_PROFILE = {
   height: 170,       // 키 (cm)
   weight: null,      // 몸무게 (kg) — 아직 모르면 null. 그동안은 아래 guessWeight 사용
   activity: 1.55,    // 활동량 (아래 ACTIVITY 중 하나)
-  goal: "maintain",  // 목표 (아래 GOALS 중 하나)
-  proteinPerKg: 1.6, // 몸무게 1kg당 단백질 g. 근력운동 하면 1.6~2.2를 많이 써요
+  calorieDelta: 0,   // 목표: 하루 소비 열량보다 얼마나 덜(−)/더(+) 먹을지 kcal. 100 단위
+  proteinPerKg: 1.6, // 몸무게 1kg당 하루 단백질 g. 근력운동 하면 1.6~2.2를 많이 써요
 };
 
 // 몸무게를 모를 때 쓰는 값: 키로 계산한 표준 체중 (BMI 22 기준, 예: 1.73 × 1.73 × 22 ≈ 66kg)
 const guessWeight = (p) => Math.round(22 * (p.height / 100) ** 2);
 
+// 운동량 → 하루 소비 열량 = 기초대사량 × 이 숫자
 const ACTIVITY = [
-  { value: 1.2,   label: "거의 운동 안 함" },
   { value: 1.375, label: "주 1~3회 운동" },
-  { value: 1.55,  label: "주 3~5회 운동" },
+  { value: 1.55,  label: "주 4~5회 운동" },
   { value: 1.725, label: "주 6~7회 운동" },
 ];
+const activityLabel = (v) => (ACTIVITY.find((a) => a.value === v) || ACTIVITY[0]).label;
 
-const GOALS = {
-  cut:      { label: "감량", delta: -400 }, // 하루 400kcal 덜 먹기 → 한 달에 약 1.5kg 감량 페이스
-  maintain: { label: "유지", delta: 0 },
-  bulk:     { label: "증량", delta: +300 }, // 근육 늘릴 때 살짝만 더 먹기
-};
+// 목표 열량 조절 범위: −1000 ~ +1000kcal, 100 단위
+const DELTA_STEPS = Array.from({ length: 21 }, (_, i) => -1000 + i * 100);
+
+// 예전 버전은 목표를 "cut / maintain / bulk"로 저장했어요. 그 값도 읽을 수 있게 바꿔주는 함수
+function deltaOf(p) {
+  if (typeof p.calorieDelta === "number") return p.calorieDelta;
+  return { cut: -400, maintain: 0, bulk: 300 }[p.goal] ?? 0;
+}
+// −400 → "감량 −400kcal", 0 → "유지", +300 → "증량 +300kcal"
+function goalLabel(delta) {
+  if (delta === 0) return "유지";
+  return delta < 0 ? `감량 −${Math.abs(delta)}kcal` : `증량 +${delta}kcal`;
+}
+// 지방 1kg ≈ 7,700kcal. 하루 차이 × 7일 ÷ 7,700 = 일주일에 변하는 몸무게(kg)
+const weeklyKg = (delta) => Math.round(((delta * 7) / 7700) * 10) / 10;
+
+// 단백질 기준 고르기 (몸무게 1kg당 하루 g)
+const PROTEIN_LEVELS = [
+  { value: 1.2, label: "1.2g · 가볍게 운동" },
+  { value: 1.6, label: "1.6g · 근력 운동 기본" },
+  { value: 2.0, label: "2.0g · 근육 늘리기·감량 중" },
+  { value: 2.2, label: "2.2g · 최대" },
+];
 
 // 화면에 보여줄 영양소 목록.
 //  kind: "target" = 이만큼은 먹어야 하는 것(부족하면 알림)
@@ -57,8 +76,8 @@ function calcTargets(p) {
   // 2) 활동량을 곱하면 하루에 실제로 쓰는 열량(TDEE)
   const tdee = bmr * p.activity;
 
-  // 3) 목표(감량/유지/증량)에 따라 더하거나 빼고, 10 단위로 반올림
-  const kcal = Math.round((tdee + GOALS[p.goal].delta) / 10) * 10;
+  // 3) 목표(감량은 −, 증량은 +)만큼 더하거나 빼고, 10 단위로 반올림
+  const kcal = Math.round((tdee + deltaOf(p)) / 10) * 10;
 
   // 4) 단백질은 몸무게 기준, 지방은 열량의 25%, 나머지 열량을 탄수화물로
   //    (단백질·탄수화물 1g = 4kcal, 지방 1g = 9kcal)

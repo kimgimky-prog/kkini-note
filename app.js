@@ -199,7 +199,7 @@ function render() {
 
   // (1) 열량 계기판
   $("totalKcal").innerHTML = `${fmtInt(eaten.kcal)}<small>kcal</small>`;
-  $("kcalGoal").innerHTML = `목표 <b>${fmtInt(goal.kcal)}</b> kcal<br>${GOALS[data.profile.goal].label} 기준`;
+  $("kcalGoal").innerHTML = `목표 <b>${fmtInt(goal.kcal)}</b> kcal<br>${goalLabel(deltaOf(data.profile))} 기준`;
   const pct = Math.min(100, (eaten.kcal / goal.kcal) * 100);
   $("meter").querySelector("i").style.width = pct + "%";
   $("meter").classList.toggle("over", eaten.kcal > goal.kcal * 1.1);
@@ -233,7 +233,7 @@ function render() {
       <span class="val">${fmtBy(r.eaten, r.n.unit)}<small>/${fmtBy(r.goal, r.n.unit)}${r.n.unit}</small><span class="chip-s ${r.st.s}">${r.n.kind === "limit" ? (r.st.s === "over" ? "초과" : "상한") : r.st.tag}</span></span>
     </div>`).join("");
   const p = data.profile;
-  $("basis").innerHTML = `만 ${p.age}세 ${p.sex === "f" ? "여성" : "남성"} · ${p.height}cm · ${p.weight ? p.weight + "kg" : `몸무게 미입력(${guessWeight(p)}kg로 계산 중)`} · ${ACTIVITY.find((a) => a.value === p.activity)?.label || ""} 기준. <button class="linkbtn" data-open-settings>기준 바꾸기</button>`;
+  $("basis").innerHTML = `만 ${p.age}세 ${p.sex === "f" ? "여성" : "남성"} · ${p.height}cm · ${p.weight ? p.weight + "kg" : `몸무게 미입력(${guessWeight(p)}kg로 계산 중)`} · ${activityLabel(p.activity)} · ${goalLabel(deltaOf(p))} 기준. <button class="linkbtn" data-open-settings>기준 바꾸기</button>`;
 
   // (4) 끼니별 기록
   $("meals").innerHTML = MEALS.map((m) => {
@@ -341,8 +341,13 @@ function resultsHtml() {
   // 검색어가 없으면: 최근 먹은 음식 + 분류별 전체 목록
   const recent = data.recent.map(findFood).filter(Boolean).slice(0, 8);
   let html = recent.length ? `<p class="grouplabel">최근 먹은 음식</p><div class="foodlist">${recent.map(foodButton).join("")}</div>` : "";
+  // 음식이 많아서 분류별로 접어두고, 누르면 펼쳐져요
+  html += `<p class="grouplabel">분류별로 보기</p>`;
   const cats = [...new Set(allFoods().map((f) => f.cat))];
-  for (const c of cats) html += `<p class="grouplabel">${esc(c)}</p><div class="foodlist">${allFoods().filter((f) => f.cat === c).map(foodButton).join("")}</div>`;
+  for (const c of cats) {
+    const list = allFoods().filter((f) => f.cat === c);
+    html += `<details class="group"><summary>${esc(c)} <span>${list.length}</span></summary><div class="foodlist">${list.map(foodButton).join("")}</div></details>`;
+  }
   return html;
 }
 
@@ -417,6 +422,14 @@ function customView() {
   return `<p class="hint">포장지의 영양성분표를 그대로 옮겨 적으면 돼요. "총 내용량 40g당"처럼 적혀 있으면 기준량에 40을 넣으세요.</p>
     <form class="form" id="customForm">
       <label class="full">음식 이름<input id="c-name" required maxlength="40" value="${esc(sh.query)}" placeholder="예: 편의점 닭가슴살 도시락"></label>
+      <div class="panel ai full">
+        <h4>성분을 모르면 AI에게 물어보기 (무료)</h4>
+        <p class="hint">① 질문 복사 → ② 챗GPT나 제미나이에 붙여넣기 → ③ AI 답을 통째로 복사해 아래 칸에 붙여넣으면 숫자가 채워져요. AI 값은 추정치라 저장 전에 한 번 확인하세요.</p>
+        <div class="row"><button type="button" class="btn" data-act="ai-copy">① 질문 복사</button></div>
+        <div class="row"><a class="btn" href="https://chatgpt.com/" target="_blank" rel="noopener">챗GPT 열기</a><a class="btn" href="https://gemini.google.com/app" target="_blank" rel="noopener">제미나이 열기</a></div>
+        <textarea id="c-prompt" readonly rows="4" hidden aria-label="복사할 질문"></textarea>
+        <textarea id="c-paste" rows="3" placeholder="③ AI 답을 여기에 붙여넣기" aria-label="AI 답 붙여넣기"></textarea>
+      </div>
       <label>기준량 (g)<input class="mono" id="c-base" type="number" inputmode="decimal" min="1" step="any" value="100" required></label>
       <label>&nbsp;<span class="hint" style="font-weight:400;padding-top:12px">이 양에 들어 있는 성분</span></label>
       ${CUSTOM_FIELDS.map(([k, l]) => `<label>${l}<input class="mono" id="c-${k}" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></label>`).join("")}
@@ -425,6 +438,66 @@ function customView() {
       <div class="row full" style="grid-column:1/-1"><button type="button" class="btn" data-act="back">← 돌아가기</button><button class="btn primary">등록하고 양 입력</button></div>
     </form>`;
 }
+// AI에게 보낼 질문. 답 형식을 정해두면 앱이 숫자를 읽기 쉬워요.
+function aiPrompt(name) {
+  return `"${name}" 1인분(또는 1개)의 영양성분을 알려줘. 정확한 값을 모르면 일반적인 평균값으로 추정해줘.
+다른 설명 없이 아래 형식 그대로, 0 자리에 숫자만 넣어서 답해줘.
+1인분무게: 0g
+열량: 0kcal
+탄수화물: 0g
+단백질: 0g
+지방: 0g
+당류: 0g
+식이섬유: 0g
+나트륨: 0mg`;
+}
+// AI 답에서 "열량: 450kcal" 같은 줄을 찾아 숫자를 꺼내요.
+// 줄 맨 앞에 이름이 있어야 해서 "포화지방: 10g"은 지방으로 잘못 읽지 않아요.
+const AI_LABELS = [
+  ["weight", "1인분\\s*무게|1회\\s*제공량|제공량|무게|중량"],
+  ["kcal", "열량|칼로리|에너지"], ["carbs", "탄수화물"], ["protein", "단백질"], ["fat", "지방"],
+  ["sugar", "당류|당"], ["fiber", "식이섬유"], ["sodium", "나트륨"],
+];
+function parseAiAnswer(text) {
+  const out = {};
+  for (const raw of text.split(/\n/)) {
+    const line = raw.replace(/[*_`#|]/g, " ").trim();
+    for (const [key, names] of AI_LABELS) {
+      if (key in out) continue;
+      const m = line.match(new RegExp(`^[\\s\\-•·▶]*(?:${names})\\s*(?:\\([^)]*\\))?\\s*[:：]\\s*(?:약|대략|~)?\\s*([\\d,]+(?:\\.\\d+)?)(?:\\s*[~\\-–]\\s*([\\d,]+(?:\\.\\d+)?))?\\s*(mg|g|kcal)?`, "i"));
+      if (!m) continue;
+      let v = Number(m[1].replace(/,/g, ""));
+      if (m[2]) v = (v + Number(m[2].replace(/,/g, ""))) / 2;   // "450~500"처럼 범위면 가운데 값
+      if (key === "sodium" && (m[3] || "").toLowerCase() === "g") v *= 1000;   // 나트륨 1.2g → 1200mg
+      out[key] = r1(v);
+      break;
+    }
+  }
+  return out;
+}
+function fillFromAi(text) {
+  const got = parseAiAnswer(text);
+  const n = CUSTOM_FIELDS.filter(([k]) => k in got).length;
+  if (!n) return toast("숫자를 못 찾았어요. AI 답을 통째로 붙여넣어 주세요.");
+  for (const [k] of CUSTOM_FIELDS) if (k in got) $("c-" + k).value = got[k];
+  if (got.weight > 0) {
+    $("c-base").value = got.weight;
+    if (!$("c-unit").value.trim()) $("c-unit").value = "인분";
+    $("c-unitg").value = got.weight;
+  }
+  toast(got.weight > 0 ? `${n}칸을 채웠어요. 확인하고 등록하세요.` : `${n}칸을 채웠어요. 1인분 무게(g)는 직접 넣어 주세요.`);
+}
+async function copyAiPrompt() {
+  const name = $("c-name").value.trim();
+  if (!name) { toast("음식 이름부터 적어 주세요."); $("c-name").focus(); return; }
+  const text = aiPrompt(name);
+  try { await navigator.clipboard.writeText(text); toast("질문을 복사했어요. AI 앱에 붙여넣으세요."); }
+  catch {   // 복사가 막힌 폰이면 질문을 보여주고 직접 길게 눌러 복사하게 해요
+    const box = $("c-prompt"); box.value = text; box.hidden = false; box.select();
+    toast("자동 복사가 안 돼요. 보이는 질문을 길게 눌러 복사하세요.");
+  }
+}
+
 function saveCustom() {
   const name = $("c-name").value.trim();
   const base = Number($("c-base").value);
@@ -449,9 +522,10 @@ function settingsView() {
       <label>키 (cm)<input class="mono" id="s-height" type="number" inputmode="decimal" min="120" max="220" step="0.1" value="${p.height}"></label>
       <label>만 나이<input class="mono" id="s-age" type="number" inputmode="numeric" min="10" max="100" value="${p.age}"></label>
       <label>성별<select id="s-sex"><option value="m" ${p.sex === "m" ? "selected" : ""}>남성</option><option value="f" ${p.sex === "f" ? "selected" : ""}>여성</option></select></label>
-      <label class="full">운동량<select id="s-activity">${ACTIVITY.map((a) => `<option value="${a.value}" ${a.value === p.activity ? "selected" : ""}>${a.label}</option>`).join("")}</select></label>
-      <label>목표<select id="s-goal">${Object.entries(GOALS).map(([k, g]) => `<option value="${k}" ${k === p.goal ? "selected" : ""}>${g.label} (${g.delta > 0 ? "+" : ""}${g.delta}kcal)</option>`).join("")}</select></label>
-      <label>단백질 (kg당)<select id="s-ppk">${[1.2, 1.6, 2.0, 2.2].map((v) => `<option value="${v}" ${v === p.proteinPerKg ? "selected" : ""}>${v}g</option>`).join("")}</select></label>
+      <label class="full">운동량<select id="s-activity">${ACTIVITY.map((a) => `<option value="${a.value}" ${a.label === activityLabel(p.activity) ? "selected" : ""}>${a.label}</option>`).join("")}</select></label>
+      <label class="full">목표 열량 (하루 소비 열량 기준 ±)<select id="s-delta">${DELTA_STEPS.map((d) => `<option value="${d}" ${d === deltaOf(p) ? "selected" : ""}>${goalLabel(d)}</option>`).join("")}</select></label>
+      <label class="full">단백질 목표 (몸무게 1kg당 하루)<select id="s-ppk">${PROTEIN_LEVELS.map((o) => `<option value="${o.value}" ${o.value === p.proteinPerKg ? "selected" : ""}>${o.label}</option>`).join("")}</select></label>
+      <p class="hint full" style="grid-column:1/-1">단백질 목표는 "몸무게 1kg마다 하루에 단백질을 몇 g 먹을지"예요. 70kg이고 1.6g이면 70 × 1.6 = 하루 112g. 근력 운동을 하면 1.6~2.2g을 많이 권해요.</p>
     </form>
     <p class="explain" id="settingsExplain"></p>
     <button class="btn primary" data-act="save-settings">저장</button>
@@ -472,7 +546,7 @@ function readSettingsForm() {
     age: Number($("s-age").value) || DEFAULT_PROFILE.age,
     sex: $("s-sex").value,
     activity: Number($("s-activity").value),
-    goal: $("s-goal").value,
+    calorieDelta: Number($("s-delta").value),
     proteinPerKg: Number($("s-ppk").value),
   };
 }
@@ -481,7 +555,7 @@ function updateSettingsPreview() {
   const t = calcTargets(p);
   $("settingsExplain").innerHTML =
     `기초대사량 <b>${fmtInt(t.bmr)}</b> × 운동량 <b>${p.activity}</b> = 하루 소비 <b>${fmtInt(t.tdee)}</b>kcal<br>` +
-    `${GOALS[p.goal].label} 목표 → <b>${fmtInt(t.kcal)}</b>kcal<br>` +
+    `${goalLabel(p.calorieDelta)} → 목표 <b>${fmtInt(t.kcal)}</b>kcal${p.calorieDelta ? ` (일주일에 약 ${Math.abs(weeklyKg(p.calorieDelta))}kg ${p.calorieDelta < 0 ? "감량" : "증량"} 속도)` : ""}<br>` +
     `단백질 <b>${t.protein}</b>g (${t.weightUsed}kg × ${p.proteinPerKg}) · 지방 <b>${t.fat}</b>g (열량의 25%) · 탄수화물 <b>${t.carbs}</b>g (나머지)<br>` +
     `식이섬유 <b>${t.fiber}</b>g 이상 · 당류 <b>${t.sugar}</b>g 이하 · 나트륨 <b>${fmtInt(t.sodium)}</b>mg 이하`;
 }
@@ -513,6 +587,7 @@ $("sheet").addEventListener("input", (ev) => {
   if (t.id === "searchQ") { sh.query = t.value; $("results").innerHTML = resultsHtml(); }
   if (t.id === "qty") { sh.qty = t.value; updateCalc(); }
   if (t.closest("#settingsForm")) updateSettingsPreview();
+  if (t.id === "c-paste" && t.value.trim()) fillFromAi(t.value);
 });
 $("sheet").addEventListener("change", (ev) => { if (ev.target.closest("#settingsForm")) updateSettingsPreview(); });
 $("sheet").addEventListener("submit", (ev) => {
@@ -547,6 +622,7 @@ $("sheet").addEventListener("click", (ev) => {
   else if (act === "save") saveEntry();
   else if (act === "delete-entry") { delete data.entries[sh.editId]; saveData(); render(); closeSheet(); toast("지웠어요."); }
   else if (act === "save-settings") { data.profile = readSettingsForm(); data.profileSet = true; saveData(); render(); closeSheet(); toast("내 기준을 저장했어요."); }
+  else if (act === "ai-copy") copyAiPrompt();
   else if (act === "export") exportBackup();
   else if (act === "import") $("importInput").click();
 });
