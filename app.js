@@ -468,8 +468,12 @@ const AI_LABELS = [
 ];
 const NUM_RE = /^(?:약|대략|~)?\s*([\d,]+(?:\.\d+)?)(?:\s*[~\-–]\s*([\d,]+(?:\.\d+)?))?\s*(mg|㎎|g|ｇ|kcal|㎉)?/i;
 function parseAiAnswer(text) {
+  const ALL = AI_LABELS.map(([, n]) => n).join("|");
   const lines = text
-    .replace(/[：]/g, ":").replace(/[*_`#|>\t]/g, " ").replace(/ /g, " ")
+    .replace(/[：]/g, ":").replace(/[*_`#|>\t]/g, " ").replace(/\u00a0/g, " ")
+    // 폰에서 복사하면 줄바꿈이 사라져 "열량: 350kcal 탄수화물: 15g ..."처럼 한 줄이 되기도 해요.
+    // 그래서 "음식 성분 이름 + 숫자"가 시작되는 곳마다 줄을 다시 나눠요.
+    .replace(new RegExp(`[\\s,;]+(?=(?:${ALL})\\s*(?:\\([^)]*\\)\\s*)*[:=]?\\s*(?:약|대략)?\\s*\\d)`, "g"), "\n")
     .split(/\r?\n/).map((l) => l.replace(/^[\s\-•·▶◦‣]+/, "").trim()).filter(Boolean);
   const out = {};
   lines.forEach((line, i) => {
