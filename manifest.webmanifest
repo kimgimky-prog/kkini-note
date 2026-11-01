@@ -1,6 +1,6 @@
 {
-  "name": "끼니 노트",
-  "short_name": "끼니 노트",
+  "name": "밥",
+  "short_name": "밥",
   "description": "먹은 음식과 양을 적으면 오늘 부족한 영양소를 바로 보여주는 식단 기록 앱",
   "lang": "ko",
   "start_url": "./",

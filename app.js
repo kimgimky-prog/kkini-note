@@ -489,7 +489,7 @@ function exportBackup() {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `끼니노트-백업-${ymd(new Date())}.json`;
+  a.download = `밥-백업-${ymd(new Date())}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
@@ -503,7 +503,7 @@ $("importInput").addEventListener("change", async (ev) => {
     localStorage.setItem(STORE_KEY, JSON.stringify(d));
     loadData(); render(); closeSheet(); toast("백업을 불러왔어요.");
   } catch {
-    sh.error = "끼니 노트 백업 파일이 아니에요."; renderSheet();
+    sh.error = "밥 앱 백업 파일이 아니에요."; renderSheet();
   }
 });
 
