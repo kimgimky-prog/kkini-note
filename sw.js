@@ -4,7 +4,7 @@
 // ▶ 앱 파일(app.js, foods.js 등)을 고친 뒤에는 아래 VERSION 숫자를 하나 올려 주세요.
 //   그래야 폰에 보관된 옛날 파일 대신 새 파일을 받아요.
 // =====================================================================
-const VERSION = "kkini-v6";
+const VERSION = "kkini-v7";
 const FILES = [
   "./", "index.html", "style.css", "foods.js", "nutrition.js", "app.js",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
@@ -29,8 +29,11 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
+  // 같은 주소(내 앱 파일)는 cache: "no-cache"로 받아요. 이게 없으면 폰 브라우저가 GitHub에서 받은
+  // 옛날 파일을 최대 10분 동안 그대로 써서, 고친 내용이 바로 안 보일 수 있어요.
+  const sameOrigin = new URL(req.url).origin === self.location.origin;
   event.respondWith(
-    fetch(req)
+    fetch(req, sameOrigin ? { cache: "no-cache" } : undefined)
       .then((res) => {
         if (res.ok || res.type === "opaque") {
           const copy = res.clone();

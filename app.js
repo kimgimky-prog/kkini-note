@@ -704,7 +704,7 @@ document.addEventListener("visibilitychange", () => {
 // 서비스 워커는 진짜 앱 주소에서만 켜요
 if (isInstallable && "serviceWorker" in navigator) {
   // 서비스 워커: 앱 파일을 폰에 보관해서 인터넷 없이도 열리게 해줘요 (sw.js 참고)
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {});
 }
 if (isInstallable) navigator.storage?.persist?.().catch(() => {});   // 폰이 기록을 함부로 지우지 않게 요청
 
