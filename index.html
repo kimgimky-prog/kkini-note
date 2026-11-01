@@ -1,0 +1,93 @@
+<!doctype html>
+<!-- =====================================================================
+  index.html : 앱의 "뼈대" (어떤 칸들이 있는지)
+  ---------------------------------------------------------------------
+  - <head> 안쪽은 브라우저에게 주는 정보예요 (제목, 아이콘, 앱 설치 정보).
+  - <body> 안쪽이 실제 화면이에요. 칸마다 id="..." 이름이 붙어 있고,
+    app.js가 그 이름으로 칸을 찾아서 숫자를 채워 넣어요.
+  - 맨 아래 <script>로 JavaScript 파일들을 순서대로 불러와요.
+    foods.js(음식 목록) → nutrition.js(목표 계산) → app.js(화면 동작)
+===================================================================== -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>끼니 노트</title>
+<meta name="description" content="먹은 음식과 양을 적으면 오늘 부족한 영양소를 바로 보여주는 식단 기록 앱">
+<meta name="theme-color" content="#f3f5f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111412" media="(prefers-color-scheme: dark)">
+<!-- 홈 화면에 설치하기 위한 정보 -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="끼니 노트">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- 글꼴과 모양 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+</head>
+<body>
+<!-- APP-START -->
+<div class="wrap">
+  <header class="top">
+    <h1 class="brand">끼니 노트</h1>
+    <div class="datenav">
+      <button class="iconbtn" id="prevDay" aria-label="전날">‹</button>
+      <div class="datelabel" id="dateLabel">오늘</div>
+      <button class="iconbtn" id="nextDay" aria-label="다음날">›</button>
+      <button class="todaybtn" id="todayBtn" hidden>오늘로</button>
+      <button class="iconbtn" id="settingsBtn" aria-label="내 기준 설정">⚙</button>
+    </div>
+  </header>
+
+  <div class="banner" id="installBanner" hidden></div>
+
+  <!-- 오늘 먹은 열량 -->
+  <section class="readout" aria-label="오늘 먹은 열량">
+    <div class="kcalrow">
+      <div>
+        <div class="label">먹은 열량</div>
+        <div class="kcalbig" id="totalKcal">0<small>kcal</small></div>
+      </div>
+      <div class="kcalgoal" id="kcalGoal"></div>
+    </div>
+    <div class="meter" id="meter"><i style="width:0%"></i></div>
+    <p class="remain" id="remain"></p>
+  </section>
+
+  <!-- 오늘 부족한 것 / 넘친 것 -->
+  <section class="needs" aria-labelledby="needsTitle">
+    <h2 id="needsTitle">오늘 부족한 것</h2>
+    <div id="needs"></div>
+  </section>
+
+  <!-- 영양소별 충족도 -->
+  <section class="facts" aria-labelledby="factsTitle">
+    <h2 id="factsTitle">영양소 충족도</h2>
+    <div id="factRows"></div>
+    <p class="basis" id="basis"></p>
+  </section>
+
+  <!-- 아침 · 점심 · 저녁 · 간식 -->
+  <div id="meals"></div>
+</div>
+
+<button class="fab" id="fab">+ 먹은 것 기록</button>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" id="sheet"></div>
+</div>
+<input type="file" id="importInput" accept="application/json,.json" hidden>
+<div class="toast" id="toast" hidden></div>
+
+<script src="foods.js"></script>
+<script src="nutrition.js"></script>
+<script src="app.js"></script>
+<!-- APP-END -->
+</body>
+</html>

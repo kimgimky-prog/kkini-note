@@ -1,0 +1,17 @@
+{
+  "name": "끼니 노트",
+  "short_name": "끼니 노트",
+  "description": "먹은 음식과 양을 적으면 오늘 부족한 영양소를 바로 보여주는 식단 기록 앱",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f5f1",
+  "theme_color": "#1e6b47",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
