@@ -319,7 +319,7 @@ function renderSheet() {
   const s = $("sheet");
   if (sh.step === "search") s.innerHTML = sheetHead(`${mealLabel(sh.meal)}에 먹은 것`) + mealChips() + searchView();
   else if (sh.step === "amount") s.innerHTML = sheetHead(sh.editId ? "기록 고치기" : `${mealLabel(sh.meal)}에 기록`) + (sh.editId ? mealChips() : "") + amountView();
-  else if (sh.step === "custom") s.innerHTML = sheetHead("목록에 없는 음식 등록") + customView();
+  else if (sh.step === "custom") s.innerHTML = sheetHead(sh.editFood ? "등록한 음식 고치기" : "목록에 없는 음식 등록") + customView();
   else if (sh.step === "settings") s.innerHTML = sheetHead("내 기준") + settingsView();
   if (sh.step === "amount") updateCalc();
   if (sh.step === "settings") updateSettingsPreview();
@@ -369,6 +369,7 @@ function amountView() {
       <div class="quick">${quick.map((v) => `<button data-q="${v}">${v}</button>`).join("")}</div>
     </div>
     <div class="calc" id="calc"></div>
+    ${f.custom && !sh.editId ? `<div class="row"><button class="btn" data-act="edit-food">성분 고치기</button><button class="btn danger" data-act="delete-food">${sh.confirmDelete ? "한 번 더 누르면 지워요" : "목록에서 지우기"}</button></div>` : ""}
     <div class="row">
       ${sh.editId ? `<button class="btn danger" data-act="delete-entry">지우기</button>` : `<button class="btn" data-act="back">← 다른 음식</button>`}
       <button class="btn primary" id="saveBtn" data-act="save">${sh.editId ? "고친 내용 저장" : `${mealLabel(sh.meal)}에 기록`}</button>
@@ -419,9 +420,13 @@ const CUSTOM_FIELDS = [
   ["sugar", "당류 (g)"], ["fiber", "식이섬유 (g)"], ["sodium", "나트륨 (mg)"],
 ];
 function customView() {
+  // 등록한 음식을 고칠 때는 원래 값을 미리 채워둬요 (단위가 있으면 그 단위 기준, 없으면 100g 기준)
+  const ef = sh.editFood;
+  const base = ef ? (ef.unit && ef.unit.name !== "g" ? ef.unit.g : 100) : 100;
+  const val = (k) => (ef ? r1((ef.per100[k] * base) / 100) : "");
   return `<p class="hint">포장지의 영양성분표를 그대로 옮겨 적으면 돼요. "총 내용량 40g당"처럼 적혀 있으면 기준량에 40을 넣으세요.</p>
     <form class="form" id="customForm">
-      <label class="full">음식 이름<input id="c-name" required maxlength="40" value="${esc(sh.query)}" placeholder="예: 편의점 닭가슴살 도시락"></label>
+      <label class="full">음식 이름<input id="c-name" required maxlength="40" value="${esc(ef ? ef.name : sh.query)}" placeholder="예: 편의점 닭가슴살 도시락"></label>
       <div class="panel ai full">
         <h4>성분을 모르면 AI에게 물어보기 (무료)</h4>
         <p class="hint">① 질문 복사 → ② 챗GPT나 제미나이에 붙여넣기 → ③ AI 답을 통째로 복사해 아래 칸에 붙여넣으면 숫자가 채워져요. AI 값은 추정치라 저장 전에 한 번 확인하세요.</p>
@@ -429,13 +434,15 @@ function customView() {
         <div class="row"><a class="btn" href="https://chatgpt.com/" target="_blank" rel="noopener">챗GPT 열기</a><a class="btn" href="https://gemini.google.com/app" target="_blank" rel="noopener">제미나이 열기</a></div>
         <textarea id="c-prompt" readonly rows="4" hidden aria-label="복사할 질문"></textarea>
         <textarea id="c-paste" rows="3" placeholder="③ AI 답을 여기에 붙여넣기" aria-label="AI 답 붙여넣기"></textarea>
+        <div class="row"><button type="button" class="btn" data-act="ai-fill">④ 붙여넣은 답으로 숫자 채우기</button></div>
+        <p class="hint" id="c-aistatus" role="status"></p>
       </div>
-      <label>기준량 (g)<input class="mono" id="c-base" type="number" inputmode="decimal" min="1" step="any" value="100" required></label>
+      <label>기준량 (g)<input class="mono" id="c-base" type="number" inputmode="decimal" min="1" step="any" value="${base}" required></label>
       <label>&nbsp;<span class="hint" style="font-weight:400;padding-top:12px">이 양에 들어 있는 성분</span></label>
-      ${CUSTOM_FIELDS.map(([k, l]) => `<label>${l}<input class="mono" id="c-${k}" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></label>`).join("")}
-      <label>자주 먹는 단위 (선택)<input id="c-unit" maxlength="6" placeholder="예: 개, 봉지"></label>
-      <label>그 단위 무게 (g)<input class="mono" id="c-unitg" type="number" inputmode="decimal" min="1" step="any" placeholder="예: 40"></label>
-      <div class="row full" style="grid-column:1/-1"><button type="button" class="btn" data-act="back">← 돌아가기</button><button class="btn primary">등록하고 양 입력</button></div>
+      ${CUSTOM_FIELDS.map(([k, l]) => `<label>${l}<input class="mono" id="c-${k}" type="number" inputmode="decimal" min="0" step="any" placeholder="0" value="${val(k)}"></label>`).join("")}
+      <label>자주 먹는 단위 (선택)<input id="c-unit" maxlength="6" placeholder="예: 개, 봉지" value="${ef && ef.unit.name !== "g" ? esc(ef.unit.name) : ""}"></label>
+      <label>그 단위 무게 (g)<input class="mono" id="c-unitg" type="number" inputmode="decimal" min="1" step="any" placeholder="예: 40" value="${ef && ef.unit.name !== "g" ? ef.unit.g : ""}"></label>
+      <div class="row full" style="grid-column:1/-1"><button type="button" class="btn" data-act="back">← 돌아가기</button><button class="btn primary">${ef ? "고친 내용 저장" : "등록하고 양 입력"}</button></div>
     </form>`;
 }
 // AI에게 보낼 질문. 답 형식을 정해두면 앱이 숫자를 읽기 쉬워요.
@@ -452,40 +459,57 @@ function aiPrompt(name) {
 나트륨: 0mg`;
 }
 // AI 답에서 "열량: 450kcal" 같은 줄을 찾아 숫자를 꺼내요.
-// 줄 맨 앞에 이름이 있어야 해서 "포화지방: 10g"은 지방으로 잘못 읽지 않아요.
+// AI마다 답 모양이 달라서 넉넉하게 읽어요: "열량: 450kcal", "**열량** 450 kcal", 표("| 열량 | 450kcal |"),
+// 이름과 숫자가 다른 줄에 있는 경우까지. 이름이 줄 맨 앞에 있어야 해서 "포화지방"은 지방으로 읽지 않아요.
 const AI_LABELS = [
-  ["weight", "1인분\\s*무게|1회\\s*제공량|제공량|무게|중량"],
-  ["kcal", "열량|칼로리|에너지"], ["carbs", "탄수화물"], ["protein", "단백질"], ["fat", "지방"],
-  ["sugar", "당류|당"], ["fiber", "식이섬유"], ["sodium", "나트륨"],
+  ["weight", "1인분\\s*(?:무게|중량|기준\\s*무게)|1회\\s*제공량|제공량|총\\s*내용량|내용량|무게|중량"],
+  ["kcal", "열량|칼로리|에너지"], ["carbs", "탄수화물"], ["protein", "단백질"], ["fat", "지방|총\\s*지방"],
+  ["sugar", "당류|총\\s*당류|당"], ["fiber", "식이섬유"], ["sodium", "나트륨"],
 ];
+const NUM_RE = /^(?:약|대략|~)?\s*([\d,]+(?:\.\d+)?)(?:\s*[~\-–]\s*([\d,]+(?:\.\d+)?))?\s*(mg|㎎|g|ｇ|kcal|㎉)?/i;
 function parseAiAnswer(text) {
+  const lines = text
+    .replace(/[：]/g, ":").replace(/[*_`#|>\t]/g, " ").replace(/ /g, " ")
+    .split(/\r?\n/).map((l) => l.replace(/^[\s\-•·▶◦‣]+/, "").trim()).filter(Boolean);
   const out = {};
-  for (const raw of text.split(/\n/)) {
-    const line = raw.replace(/[*_`#|]/g, " ").trim();
+  lines.forEach((line, i) => {
     for (const [key, names] of AI_LABELS) {
       if (key in out) continue;
-      const m = line.match(new RegExp(`^[\\s\\-•·▶]*(?:${names})\\s*(?:\\([^)]*\\))?\\s*[:：]\\s*(?:약|대략|~)?\\s*([\\d,]+(?:\\.\\d+)?)(?:\\s*[~\\-–]\\s*([\\d,]+(?:\\.\\d+)?))?\\s*(mg|g|kcal)?`, "i"));
+      const m = line.match(new RegExp(`^(?:${names})`));
       if (!m) continue;
-      let v = Number(m[1].replace(/,/g, ""));
-      if (m[2]) v = (v + Number(m[2].replace(/,/g, ""))) / 2;   // "450~500"처럼 범위면 가운데 값
-      if (key === "sodium" && (m[3] || "").toLowerCase() === "g") v *= 1000;   // 나트륨 1.2g → 1200mg
+      // 이름 뒤의 "(kcal)", "(1인분 기준)" 같은 괄호와 ":" "=" 를 건너뛰고 숫자를 찾아요
+      let rest = line.slice(m[0].length).replace(/^\s*(?:\([^)]*\)\s*)*[:=]?\s*/, "");
+      let n = rest.match(NUM_RE);
+      if (!n && i + 1 < lines.length) n = lines[i + 1].match(NUM_RE);   // 숫자가 다음 줄에 있는 경우
+      if (!n) break;
+      let v = Number(n[1].replace(/,/g, ""));
+      if (n[2]) v = (v + Number(n[2].replace(/,/g, ""))) / 2;   // "450~500"처럼 범위면 가운데 값
+      if (key === "sodium" && /^[gｇ]$/i.test(n[3] || "")) v *= 1000;   // 나트륨 1.2g → 1200mg
       out[key] = r1(v);
       break;
     }
-  }
+  });
   return out;
 }
-function fillFromAi(text) {
+function fillFromAi(text, fromButton) {
+  const status = $("c-aistatus");
+  if (!text.trim()) { status.textContent = "먼저 위 칸에 AI 답을 붙여넣어 주세요."; return; }
   const got = parseAiAnswer(text);
-  const n = CUSTOM_FIELDS.filter(([k]) => k in got).length;
-  if (!n) return toast("숫자를 못 찾았어요. AI 답을 통째로 붙여넣어 주세요.");
-  for (const [k] of CUSTOM_FIELDS) if (k in got) $("c-" + k).value = got[k];
+  const found = CUSTOM_FIELDS.filter(([k]) => k in got);
+  if (!found.length) {
+    status.textContent = "답에서 숫자를 못 찾았어요. AI 답을 통째로 복사했는지 확인하거나, 아래 칸에 직접 적어 주세요.";
+    if (fromButton) toast("숫자를 못 찾았어요.");
+    return;
+  }
+  for (const [k] of found) $("c-" + k).value = got[k];
   if (got.weight > 0) {
     $("c-base").value = got.weight;
     if (!$("c-unit").value.trim()) $("c-unit").value = "인분";
     $("c-unitg").value = got.weight;
   }
-  toast(got.weight > 0 ? `${n}칸을 채웠어요. 확인하고 등록하세요.` : `${n}칸을 채웠어요. 1인분 무게(g)는 직접 넣어 주세요.`);
+  status.textContent = `${found.map(([, l]) => l.split(" ")[0]).join(", ")} 칸을 채웠어요.` +
+    (got.weight > 0 ? ` 기준량 ${got.weight}g.` : " 1인분 무게는 못 찾아서 기준량을 직접 확인해 주세요.");
+  toast(`${found.length}칸을 채웠어요. 확인하고 저장하세요.`);
 }
 async function copyAiPrompt() {
   const name = $("c-name").value.trim();
@@ -506,9 +530,29 @@ function saveCustom() {
   for (const [k] of CUSTOM_FIELDS) per100[k] = r1(((Number($("c-" + k).value) || 0) * 100) / base);   // 기준량 → 100g당으로 바꾸기
   const unitName = $("c-unit").value.trim();
   const unitG = Number($("c-unitg").value);
-  const food = { id: "c:" + newId(), name, per100, unit: unitName && unitG > 0 ? { name: unitName, g: unitG } : { name: "g", g: 100 } };
-  data.customFoods.push(food);
-  saveData();
+  // 성분이 전부 0이면 실수일 가능성이 커서 한 번 확인해요 (물·제로음료면 한 번 더 누르면 저장돼요)
+  if (Object.values(per100).every((v) => !v) && !sh.zeroOk) {
+    sh.zeroOk = true;
+    return toast("성분이 전부 0이에요. 맞으면 한 번 더 누르세요.");
+  }
+  const unit = unitName && unitG > 0 ? { name: unitName, g: unitG } : { name: "g", g: 100 };
+  let food;
+  if (sh.editFood) {
+    // 고치기: 같은 id를 그대로 쓰고, 이 음식으로 남긴 지난 기록도 새 성분으로 바꿔요
+    food = { ...sh.editFood, name, per100, unit };
+    delete food.custom; delete food.cat;
+    data.customFoods = data.customFoods.map((f) => (f.id === food.id ? food : f));
+    for (const e of Object.values(data.entries)) if (e.foodId === food.id) Object.assign(e, { name, per100: { ...per100 }, unit });
+    saveData(); render();
+    toast("고쳤어요. 이 음식으로 남긴 기록도 새 성분으로 바뀌었어요.");
+    food = findFood(food.id);
+  } else {
+    food = { id: "c:" + newId(), name, per100, unit };
+    data.customFoods.push(food);
+    saveData();
+    food = findFood(food.id);
+  }
+  sh.editFood = null; sh.zeroOk = false;
   sh = { ...sh, step: "amount", food, mode: food.unit.name !== "g" ? "unit" : "g", qty: food.unit.name !== "g" ? "1" : "100" };
   renderSheet();
 }
@@ -588,6 +632,7 @@ $("sheet").addEventListener("input", (ev) => {
   if (t.id === "qty") { sh.qty = t.value; updateCalc(); }
   if (t.closest("#settingsForm")) updateSettingsPreview();
   if (t.id === "c-paste" && t.value.trim()) fillFromAi(t.value);
+  if (t.closest("#customForm") && t.id !== "c-paste") sh.zeroOk = false;
 });
 $("sheet").addEventListener("change", (ev) => { if (ev.target.closest("#settingsForm")) updateSettingsPreview(); });
 $("sheet").addEventListener("submit", (ev) => {
@@ -601,7 +646,7 @@ $("sheet").addEventListener("click", (ev) => {
   if (food) {
     const f = findFood(food.dataset.food);
     const hasUnit = f.unit && f.unit.name !== "g";
-    sh = { ...sh, step: "amount", food: f, mode: hasUnit ? "unit" : "g", qty: hasUnit ? "1" : "100" };
+    sh = { ...sh, step: "amount", food: f, mode: hasUnit ? "unit" : "g", qty: hasUnit ? "1" : "100", confirmDelete: false };
     renderSheet(); $("qty")?.select(); return;
   }
   const mode = ev.target.closest("[data-mode]");
@@ -617,12 +662,21 @@ $("sheet").addEventListener("click", (ev) => {
 
   const act = ev.target.closest("[data-act]")?.dataset.act;
   if (act === "close") closeSheet();
-  else if (act === "back") { sh.step = "search"; renderSheet(); }
+  else if (act === "back") { sh.step = sh.editFood ? "amount" : "search"; if (sh.editFood) sh.food = findFood(sh.editFood.id) || sh.food; sh.editFood = null; renderSheet(); }
   else if (act === "custom") { sh.step = "custom"; renderSheet(); $("c-name")?.focus(); }
   else if (act === "save") saveEntry();
   else if (act === "delete-entry") { delete data.entries[sh.editId]; saveData(); render(); closeSheet(); toast("지웠어요."); }
   else if (act === "save-settings") { data.profile = readSettingsForm(); data.profileSet = true; saveData(); render(); closeSheet(); toast("내 기준을 저장했어요."); }
   else if (act === "ai-copy") copyAiPrompt();
+  else if (act === "ai-fill") fillFromAi($("c-paste").value, true);
+  else if (act === "edit-food") { sh.editFood = sh.food; sh.zeroOk = false; sh.step = "custom"; renderSheet(); }
+  else if (act === "delete-food") {
+    if (!sh.confirmDelete) { sh.confirmDelete = true; renderSheet(); return; }
+    data.customFoods = data.customFoods.filter((f) => f.id !== sh.food.id);
+    data.recent = data.recent.filter((id) => id !== sh.food.id);
+    saveData(); toast(`${sh.food.name}을(를) 목록에서 지웠어요. 이미 남긴 기록은 그대로예요.`);
+    sh = { ...sh, step: "search", food: null, confirmDelete: false }; renderSheet();
+  }
   else if (act === "export") exportBackup();
   else if (act === "import") $("importInput").click();
 });
