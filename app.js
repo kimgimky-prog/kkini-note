@@ -31,6 +31,11 @@ const parseYmd = (s) => { const [y, m, d] = s.split("-").map(Number); return new
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 const mealLabel = (k) => MEALS.find((m) => m.key === k)?.label || "";
 
+// 설치용 정보(manifest)가 있는 진짜 앱 주소인지, 홈 화면에 설치해서 열었는지
+// (const는 쓰기 전에 먼저 만들어 둬야 해요. 아래에서 만들면 위쪽 코드가 쓸 때 오류가 나요!)
+const isInstallable = !!document.querySelector('link[rel="manifest"]');
+const isInstalled = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+
 // 100g당 값 × 먹은 g ÷ 100 = 실제로 먹은 양  ← 이 앱의 핵심 계산!
 const amountOf = (per100, grams, key) => ((Number(per100?.[key]) || 0) * (Number(grams) || 0)) / 100;
 
@@ -562,9 +567,7 @@ document.addEventListener("visibilitychange", () => {
   if (now !== lastToday) { if (state.date === lastToday) state.date = now; lastToday = now; render(); }
 });
 
-// 설치용 정보(manifest)가 있는 진짜 앱 주소에서만 동작해요
-const isInstallable = !!document.querySelector('link[rel="manifest"]');
-const isInstalled = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+// 서비스 워커는 진짜 앱 주소에서만 켜요
 if (isInstallable && "serviceWorker" in navigator) {
   // 서비스 워커: 앱 파일을 폰에 보관해서 인터넷 없이도 열리게 해줘요 (sw.js 참고)
   navigator.serviceWorker.register("sw.js").catch(() => {});
