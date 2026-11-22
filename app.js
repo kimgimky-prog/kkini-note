@@ -252,6 +252,7 @@ function render() {
         </li>`).join("")}</ul>` : `<p class="empty">아직 기록이 없어요.</p>`}
     </section>`;
   }).join("");
+  renderWeight();   // (5) 체중 칸 (아래 6번 부분)
 }
 
 // 메인 화면 버튼들
@@ -608,7 +609,8 @@ function updateSettingsPreview() {
     `식이섬유 <b>${t.fiber}</b>g 이상 · 당류 <b>${t.sugar}</b>g 이하 · 나트륨 <b>${fmtInt(t.sodium)}</b>mg 이하`;
 }
 function exportBackup() {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  // 체중 기록은 따로 저장하지만, 백업 파일에는 weights 칸으로 함께 넣어요 (기존 칸은 그대로)
+  const blob = new Blob([JSON.stringify({ ...data, weights }, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `밥-백업-${ymd(new Date())}.json`;
@@ -622,7 +624,10 @@ $("importInput").addEventListener("change", async (ev) => {
   try {
     const d = JSON.parse(await file.text());
     if (!d || typeof d.entries !== "object") throw new Error("bad");
-    localStorage.setItem(STORE_KEY, JSON.stringify(d));
+    // weights 칸(체중)은 따로 떼어서 체중 저장 칸에 넣어요. 옛 백업엔 이 칸이 없으니 지금 체중 기록을 그대로 둬요.
+    const { weights: w, ...rest } = d;
+    localStorage.setItem(STORE_KEY, JSON.stringify(rest));
+    if (w && typeof w === "object") { weights = cleanWeights(w); saveWeights(); }
     loadData(); render(); closeSheet(); toast("백업을 불러왔어요.");
   } catch {
     sh.error = "밥 앱 백업 파일이 아니에요."; renderSheet();
@@ -683,6 +688,77 @@ $("sheet").addEventListener("click", (ev) => {
   }
   else if (act === "export") exportBackup();
   else if (act === "import") $("importInput").click();
+});
+
+// ---------------------------------------------------------------------
+// 5-5. 체중 기록 + 최근 7일 그래프
+//    - 체중은 식단 기록(kkini-note.v2)과 "다른 칸"(kkini-note.weight.v1)에 저장해요.
+//      그래서 체중 기능을 고치거나 지워도 기존 식단 기록은 전혀 영향을 받지 않아요.
+//    - 저장 모양: { "2026-11-22": 70.5, "2026-11-23": 70.3, ... }  (날짜: kg)
+//    - ⚙ 설정의 '몸무게'(목표 계산용)는 자동으로 바꾸지 않아요. 직접 바꾸면 돼요.
+// ---------------------------------------------------------------------
+const WEIGHT_KEY = "kkini-note.weight.v1";
+// 30~250kg 사이의 숫자만 남겨요 (잘못된 값이 들어와도 그래프가 깨지지 않게)
+function cleanWeights(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj || {})) {
+    const n = Number(v);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(k) && n >= 30 && n <= 250) out[k] = r1(n);
+  }
+  return out;
+}
+let weights = {};
+try { weights = cleanWeights(JSON.parse(localStorage.getItem(WEIGHT_KEY))); } catch {}
+function saveWeights() {
+  try { localStorage.setItem(WEIGHT_KEY, JSON.stringify(weights)); }
+  catch { toast("체중을 폰에 저장하지 못했어요."); }
+}
+
+// 보고 있는 날짜(state.date)를 끝으로 7일짜리 그래프를 그려요
+function renderWeight() {
+  const days = [];
+  for (let i = 6; i >= 0; i--) { const d = parseYmd(state.date); d.setDate(d.getDate() - i); days.push(ymd(d)); }
+  const pts = days.map((k, i) => ({ k, i, v: weights[k] })).filter((p) => p.v != null);
+  const cur = weights[state.date];
+
+  // 입력 칸: 이날 체중이 있으면 그 값을 보여주고, 비우고 저장하면 지워져요
+  let html = `<form class="wform" id="weightForm">
+      <input id="w-in" type="number" inputmode="decimal" min="30" max="250" step="0.1" value="${cur ?? ""}" placeholder="이날 체중 (kg)" aria-label="이날 체중 kg">
+      <button class="btn primary" type="submit">${cur != null ? "고치기" : "저장"}</button>
+    </form>`;
+
+  if (!pts.length) {
+    html += `<p class="hint">체중을 적으면 최근 7일 그래프가 여기에 나와요. 기록은 이 폰 안에만 저장돼요.</p>`;
+  } else {
+    // 그래프 크기(SVG 좌표). 위아래 여유를 두고, 변화가 작아도 보이게 최소 1kg 폭을 줘요
+    const W = 320, H = 120, L = 8, R = 8, T = 18, B = 22;
+    let lo = Math.min(...pts.map((p) => p.v)), hi = Math.max(...pts.map((p) => p.v));
+    if (hi - lo < 1) { const m = (hi + lo) / 2; lo = m - 0.5; hi = m + 0.5; }
+    const x = (i) => L + (i * (W - L - R)) / 6;
+    const y = (v) => T + ((hi - v) * (H - T - B)) / (hi - lo);
+    const line = pts.map((p) => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+    html += `<svg class="wchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="최근 7일 체중 그래프">
+      <line class="grid" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/>
+      ${pts.length > 1 ? `<polyline class="ln" points="${line}"/>` : ""}
+      ${pts.map((p) => `<circle class="pt ${p.k === state.date ? "sel" : ""}" cx="${x(p.i)}" cy="${y(p.v)}" r="4"/>
+        <text class="v" x="${x(p.i)}" y="${y(p.v) - 8}" text-anchor="${p.i === 0 ? "start" : p.i === 6 ? "end" : "middle"}">${p.v}</text>`).join("")}
+      ${days.map((k, i) => `<text x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? "start" : i === 6 ? "end" : "middle"}">${parseYmd(k).getDate()}일</text>`).join("")}
+    </svg>`;
+    // 7일 안 처음 기록과 마지막 기록의 차이
+    if (pts.length > 1) {
+      const diff = r1(pts[pts.length - 1].v - pts[0].v);
+      html += `<p class="hint">이 7일 동안 ${diff === 0 ? "변화 없음" : `${diff > 0 ? "+" : ""}${diff}kg`} (기록 ${pts.length}일)</p>`;
+    }
+  }
+  $("weightBox").innerHTML = html;
+}
+$("weightBox").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const raw = $("w-in").value.trim();
+  if (raw === "") { delete weights[state.date]; saveWeights(); renderWeight(); toast("이날 체중을 지웠어요."); return; }
+  const n = Number(raw);
+  if (!(n >= 30 && n <= 250)) { toast("30~250kg 사이로 적어 주세요."); return; }
+  weights[state.date] = r1(n); saveWeights(); renderWeight(); toast("체중을 저장했어요.");
 });
 
 // ---------------------------------------------------------------------
