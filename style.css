@@ -194,3 +194,17 @@ details.group summary span{margin-left:auto}
 /* 시트 안 내용이 길어져도 검색창·목록이 찌그러지지 않게 */
 .sheet > *{flex-shrink:0}
 #results{display:flex;flex-direction:column;gap:8px}
+
+/* ---------- 체중 기록 + 7일 그래프 ---------- */
+.weight{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px}
+.weight h2{margin:0;font-family:var(--display);font-weight:400;font-size:20px}
+.wform{display:flex;gap:8px;align-items:center}
+.wform input{flex:1;min-width:0;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:0 10px;font-family:var(--mono);font-size:16px}
+.wform .btn{height:44px}
+.wchart{width:100%;height:auto;display:block}
+.wchart .grid{stroke:var(--line);stroke-width:1}
+.wchart .ln{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.wchart .pt{fill:var(--accent)}
+.wchart .pt.sel{fill:var(--surface);stroke:var(--accent);stroke-width:2.5}
+.wchart text{fill:var(--muted);font-family:var(--mono);font-size:11px}
+.wchart text.v{fill:var(--ink);font-weight:600}
